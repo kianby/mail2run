@@ -22,6 +22,8 @@ def process_message(chan, method, properties, body):
             if re.search(run['regex'], data['subject']):
                 logger.info('execute {}'.format(run))
                 break
+            else:
+                logger.info('no match {} for {}'.format(data['subject'], run))
     else:
         logger.warn('unsupported message [topic={}]'.format(topic))
 
