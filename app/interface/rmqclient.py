@@ -58,7 +58,7 @@ def process_message(chan, method, properties, body):
 
                 try:
                     r = subprocess.run(
-                        ["ls", "-l", "/dev/null"], stdout=subprocess.PIPE)
+                        [run['exec']], stdout=subprocess.PIPE)
                     message = str(r)
                 except:
                     logger.exception('cannot execute')
