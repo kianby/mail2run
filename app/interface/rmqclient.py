@@ -5,6 +5,7 @@ import pika
 import json
 import logging
 import re
+import subprocess
 from threading import Thread
 from conf import config
 
