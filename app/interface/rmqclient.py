@@ -11,11 +11,12 @@ from conf import config
 logger = logging.getLogger(__name__)
 
 
-credentials = pika.PlainCredentials(
-    config.rabbitmq['username'], config.rabbitmq['password'])
-connection = pika.BlockingConnection(pika.ConnectionParameters(host=config.rabbitmq['host'], port=config.rabbitmq[
-                                     'port'], credentials=credentials, virtual_host=config.rabbitmq['vhost']))
-
+def get_rabbitmq_connection():
+    credentials = pika.PlainCredentials(
+        config.rabbitmq['username'], config.rabbitmq['password'])
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host=config.rabbitmq['host'], port=config.rabbitmq[
+                                         'port'], credentials=credentials, virtual_host=config.rabbitmq['vhost']))
+    return connection
 
 def mail(to_email, subject, message):
 
@@ -24,6 +25,7 @@ def mail(to_email, subject, message):
         'subject': subject,
         'content': message
     }
+    connection = get_rabbitmq_connection()
     channel = connection.channel()
     channel.basic_publish(exchange=config.rabbitmq['exchange'],
                           routing_key='mail.command.send',
@@ -34,6 +36,7 @@ def mail(to_email, subject, message):
 
 def send_delete_command(content):
 
+    connection = get_rabbitmq_connection()
     channel = connection.channel()
     channel.basic_publish(exchange=config.rabbitmq['exchange'],
                           routing_key='mail.command.delete',
@@ -74,6 +77,7 @@ class CommandConsumer(Thread):
 
     def run(self):
 
+        connection = get_rabbitmq_connection()
         channel = connection.channel()
         channel.exchange_declare(exchange=config.rabbitmq['exchange'],
                                  exchange_type='topic')
