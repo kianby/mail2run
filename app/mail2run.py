@@ -24,7 +24,7 @@ def mail2run(config_pathname):
     validate(conf, json_schema)
     
     # set configuration
-    config.run = conf['runs']
+    config.runs = conf['runs']
     config.rabbitmq = conf['rabbitmq']
 
     # start application
