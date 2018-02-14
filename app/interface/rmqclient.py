@@ -19,6 +19,7 @@ def get_rabbitmq_connection():
                                          'port'], credentials=credentials, virtual_host=config.rabbitmq['vhost']))
     return connection
 
+
 def mail(to_email, subject, message):
 
     body = {

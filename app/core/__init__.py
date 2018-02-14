@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import signal
 import sys
 import os
 import logging
-from interface import rmqclient
 from conf import config
+from interface import rmqclient
 
-# configure logging
+
 def configure_logging(level):
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
@@ -22,6 +23,10 @@ def configure_logging(level):
     root_logger.addHandler(ch)
 
 
+def signal_handler(signal, frame):
+    print('CTRL-C caught')
+
+
 # configure logging
 logger = logging.getLogger(__name__)
 configure_logging(logging.INFO)
@@ -33,10 +38,11 @@ config.cwd = os.getcwd()
 if(config.rabbitmq['active']):
     c = rmqclient.start()
 
-
 logger.info('Starting mail2run application')
 
-input("\nPress Enter to stop.")
+signal.signal(signal.SIGINT, signal_handler)
+print('Press Ctrl+C')
+signal.pause()
 
 logger.info('Stopping mail2run application')
 sys.exit(0)
