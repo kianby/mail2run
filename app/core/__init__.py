@@ -8,6 +8,8 @@ import logging
 from conf import config
 from interface import rmqclient
 
+app = 'mail2run'
+
 
 def configure_logging(level):
     root_logger = logging.getLogger()
