@@ -8,16 +8,22 @@ import re
 import subprocess
 from threading import Thread
 from conf import config
+from util import rabbit
 
 logger = logging.getLogger(__name__)
 
 
 def get_rabbitmq_connection():
+
     credentials = pika.PlainCredentials(
         config.rabbitmq['username'], config.rabbitmq['password'])
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host=config.rabbitmq['host'], port=config.rabbitmq[
-                                         'port'], credentials=credentials, virtual_host=config.rabbitmq['vhost']))
-    return connection
+    parameters = pika.ConnectionParameters(
+        host=config.rabbitmq['host'],
+        port=config.rabbitmq['port'],
+        credentials=credentials,
+        virtual_host=config.rabbitmq['vhost']
+    )
+    return rabbit.Connection(parameters)
 
 
 def mail(to_email, subject, message):
@@ -27,74 +33,60 @@ def mail(to_email, subject, message):
         'subject': subject,
         'content': message
     }
-    connection = get_rabbitmq_connection()
+    connector = get_rabbitmq_connection()
+    connection = connector.open()
     channel = connection.channel()
     channel.basic_publish(exchange=config.rabbitmq['exchange'],
                           routing_key='mail.command.send',
                           body=json.dumps(body, indent=False, sort_keys=False))
-    connection.close()
+    connector.close()
     logger.info('Email for %s posted' % to_email)
 
 
 def send_delete_command(content):
 
-    connection = get_rabbitmq_connection()
+    connector = get_rabbitmq_connection()
+    connection = connector.open()
     channel = connection.channel()
     channel.basic_publish(exchange=config.rabbitmq['exchange'],
                           routing_key='mail.command.delete',
                           body=json.dumps(content, indent=False, sort_keys=False))
-    connection.close()
+    connector.close()
     logger.info('Email accepted. Delete request sent for %s' % content)
 
 
-def process_message(chan, method, properties, body):
-    topic = method.routing_key
-    data = json.loads(body)
+class MailConsumer(rabbit.Consumer):
 
-    if topic == 'mail.message':
-        logger.info('new message => {}'.format(data))
+    def process(self, channel, method, properties, body):
+        topic = method.routing_key
+        data = json.loads(body)
 
-        for run in config.runs:
-            if re.search(run['regex'], data['subject']):
+        if topic == 'mail.message':
+            logger.info('new message => {}'.format(data))
 
-                try:
-                    r = subprocess.run(
-                        [run['exec']], stdout=subprocess.PIPE)
-                    message = str(r)
-                except:
-                    logger.exception('cannot execute')
-                    message = 'cannot execute {}'.format(run['exec'])
+            for run in config.runs:
+                if re.search(run['regex'], data['subject']):
 
-                send_delete_command(data)
+                    try:
+                        r = subprocess.run(
+                            [run['exec']], stdout=subprocess.PIPE)
+                        message = str(r)
+                    except:
+                        logger.exception('cannot execute')
+                        message = 'cannot execute {}'.format(run['exec'])
 
-                mail(data['from'], 'RE: ' + data['subject'], message)
-                break
-            else:
-                logger.info('no match {} for {}'.format(data['subject'], run))
-    else:
-        logger.warn('unsupported message [topic={}]'.format(topic))
+                    send_delete_command(data)
 
-
-class CommandConsumer(Thread):
-
-    def run(self):
-
-        connection = get_rabbitmq_connection()
-        channel = connection.channel()
-        channel.exchange_declare(exchange=config.rabbitmq['exchange'],
-                                 exchange_type='topic')
-
-        result = channel.queue_declare(exclusive=True)
-        queue_name = result.method.queue
-        channel.queue_bind(exchange=config.rabbitmq['exchange'],
-                           queue=queue_name,
-                           routing_key='mail.message')
-        channel.basic_consume(process_message,
-                              queue=queue_name,
-                              no_ack=True)
-        channel.start_consuming()
+                    mail(data['from'], 'RE: ' + data['subject'], message)
+                    break
+                else:
+                    logger.info('no match {} for {}'.format(
+                        data['subject'], run))
+        else:
+            logger.warn('unsupported message [topic={}]'.format(topic))
 
 
 def start():
-    consumer = CommandConsumer()
-    consumer.start()
+    connection = get_rabbitmq_connection()
+    c = MailConsumer(connection, config.rabbitmq['exchange'], 'mail.message')
+    c.start()
